@@ -1,0 +1,45 @@
+name: Patch
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'Direct URL to the boot image or update.bin to patch'
+        required: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Clone AIK-Linux-mirror
+        run: |
+          git clone https://github.com/SebaUbuntu/AIK-Linux-mirror.git
+          chmod +x AIK-Linux-mirror/*.sh
+      
+      - name: Clone boot2root
+        run: |
+          git clone https://github.com/amazon-oss/boot2root.git
+      
+      - name: Download and extract boot image
+        run: |
+          URL="${{ github.event.inputs.urls }}"
+          if [[ "$URL" == *.bin ]]; then
+            wget -O update.bin "$URL"
+            unzip -q update.bin boot.img
+          else
+            wget -O boot.img "$URL"
+          fi
+      
+      - name: Execute patching script
+        run: |
+          chmod +x run.sh
+          ./run.sh
+      
+      - name: Upload patched boot image
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-boot
+          path: boot-*.img
