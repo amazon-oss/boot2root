@@ -38,8 +38,17 @@ jobs:
           chmod +x run.sh
           ./run.sh
       
-      - name: Upload patched boot image
+      - name: Extract ZIP contents
+        id: artifact
+        run: |
+          ZIP_FILE=$(ls boot-*.zip)
+          ZIP_NAME=$(basename "$ZIP_FILE" .zip)
+          mkdir -p artifact_contents
+          unzip -q "$ZIP_FILE" -d artifact_contents
+          echo "name=$ZIP_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Upload flashable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: patched-boot
-          path: boot-*.img
+          name: ${{ steps.artifact.outputs.name }}
+          path: artifact_contents/

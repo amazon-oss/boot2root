@@ -1,0 +1,70 @@
+#!/sbin/sh
+
+umask 022
+
+OUTFD=$2
+ZIP="$3"
+
+ui_print() {
+  echo -e "ui_print $1\nui_print" >> /proc/self/fd/$OUTFD
+}
+
+getprop | grep zygote | grep -q running && bootMode=true || bootMode=false
+
+if $bootMode; then
+  ui_print " "
+  ui_print "Boot mode install is not supported"
+  ui_print "Install from recovery mode"
+  ui_print " "
+  exit 1
+fi
+
+setenforce 0
+
+TMPDIR=/dev/tmp
+INSTALLER=$TMPDIR/install
+
+rm -rf $TMPDIR 2>/dev/null
+mkdir -p $INSTALLER 2>/dev/null
+
+ui_print " "
+ui_print "Boot Image Patcher"
+ui_print " "
+
+ui_print "Extracting files"
+unzip -o "$ZIP" 'boot.img' -d $INSTALLER >&2
+
+if [ ! -f "$INSTALLER/boot.img" ]; then
+  ui_print "Error: boot.img not found in ZIP"
+  exit 1
+fi
+
+ui_print "Finding boot partition"
+BOOT_BLOCK=$(find /dev/block/platform/*/by-name -name boot 2>/dev/null | head -n 1)
+
+if [ -z "$BOOT_BLOCK" ]; then
+  BOOT_BLOCK=$(find /dev/block/by-name -name boot 2>/dev/null | head -n 1)
+fi
+
+if [ -z "$BOOT_BLOCK" ]; then
+  ui_print "Error: boot partition not found"
+  exit 1
+fi
+
+ui_print "Boot partition: $BOOT_BLOCK"
+
+ui_print "Flashing boot image"
+dd if=$INSTALLER/boot.img of=$BOOT_BLOCK bs=4096
+
+if [ $? -eq 0 ]; then
+  ui_print "Boot image flashed successfully"
+else
+  ui_print "Error: Failed to flash boot image"
+  exit 1
+fi
+
+ui_print " "
+ui_print "Installation complete"
+ui_print " "
+
+exit 0

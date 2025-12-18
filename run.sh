@@ -64,16 +64,29 @@ FINGERPRINT=$(read_prop "ramdisk/default.prop" "ro.bootimage.build.fingerprint")
 if [ -n "$FINGERPRINT" ]; then
     MODEL=$(echo "$FINGERPRINT" | cut -d'/' -f2)
     BUILD_INFO=$(echo "$FINGERPRINT" | cut -d'/' -f4 | cut -d':' -f1)
-    OUTPUT_NAME="boot-${MODEL}-${BUILD_INFO}.img"
+    OUTPUT_NAME="boot-${MODEL}-${BUILD_INFO}"
     echo "Device: $MODEL ($BUILD_INFO)"
 else
-    OUTPUT_NAME="boot-patched.img"
+    OUTPUT_NAME="boot-patched"
 fi
 
 echo "Repacking boot image"
 ./repackimg.sh > /dev/null 2>&1
 
 cd ..
-mv "$AIK_DIR/image-new.img" "$OUTPUT_NAME"
 
-echo "Successfully created $OUTPUT_NAME"
+echo "Creating flashable ZIP"
+ZIP_DIR="flashable"
+mkdir -p $ZIP_DIR/META-INF/com/google/android
+
+mv "$AIK_DIR/image-new.img" "$ZIP_DIR/boot.img"
+cp "bin/update-binary" "$ZIP_DIR/META-INF/com/google/android/"
+echo "# Dummy" > "$ZIP_DIR/META-INF/com/google/android/updater-script"
+
+cd $ZIP_DIR
+zip -r "../${OUTPUT_NAME}.zip" * > /dev/null 2>&1
+cd ..
+
+rm -rf $ZIP_DIR
+
+echo "Successfully created ${OUTPUT_NAME}.zip"
