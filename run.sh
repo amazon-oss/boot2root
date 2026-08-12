@@ -30,6 +30,20 @@ update_prop() {
     fi
 }
 
+remove_service() {
+    local rc_file="$1"
+    local svc_name="$2"
+
+    [ -f "$rc_file" ] || return 0
+    grep -q "^service[[:space:]]\+${svc_name}[[:space:]]" "$rc_file" || return 0
+
+    awk -v svc="$svc_name" '
+        /^service[ \t]/ && $2 == svc { skip = 1; next }
+        skip && /^([ \t]|$)/ { next }
+        { skip = 0; print }
+    ' "$rc_file" > "${rc_file}.new" && mv "${rc_file}.new" "$rc_file"
+}
+
 [ ! -f "$BOOT_IMG" ] && echo "Error: boot.img not found" && exit 1
 
 echo "Unpacking boot image"
@@ -49,6 +63,9 @@ update_prop "ramdisk/default.prop" "ro.adb.secure" "0"
 update_prop "ramdisk/default.prop" "ro.secure" "0"
 update_prop "ramdisk/default.prop" "ro.debuggable" "1"
 update_prop "ramdisk/default.prop" "persist.sys.usb.config" "mtp,adb"
+
+echo "Removing recovery restore service"
+remove_service "ramdisk/init.aosp.rc" "flash_recovery"
 
 if [ -f "ramdisk/sepolicy" ]; then
     echo "Patching SELinux policy"
