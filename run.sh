@@ -44,6 +44,31 @@ remove_service() {
     ' "$rc_file" > "${rc_file}.new" && mv "${rc_file}.new" "$rc_file"
 }
 
+patch_fstab() {
+    local fstab_file="$1"
+
+    [ -f "$fstab_file" ] || return 0
+    grep -q "verify" "$fstab_file" || return 0
+
+    awk '
+        /^[ \t]*#/ || NF != 5 { print; next }
+        {
+            n = split($5, flags, ",")
+            out = ""
+            for (i = 1; i <= n; i++) {
+                if (flags[i] == "verify" || flags[i] == "verifyatboot") continue
+                if (flags[i] ~ /^verify=/) continue
+                out = (out == "" ? flags[i] : out "," flags[i])
+            }
+            if (out == "") out = "defaults"
+            if (out != $5) sub(/[^ \t]+$/, out)
+            print
+        }
+    ' "$fstab_file" > "${fstab_file}.new" && mv "${fstab_file}.new" "$fstab_file"
+
+    chmod 644 "$fstab_file"
+}
+
 [ ! -f "$BOOT_IMG" ] && echo "Error: boot.img not found" && exit 1
 
 echo "Unpacking boot image"
@@ -66,6 +91,15 @@ update_prop "ramdisk/default.prop" "persist.sys.usb.config" "mtp,adb"
 
 echo "Removing recovery restore service"
 remove_service "ramdisk/init.aosp.rc" "flash_recovery"
+
+echo "Disabling dm-verity"
+for FSTAB in ramdisk/fstab.*; do
+    [ -f "$FSTAB" ] || continue
+    if grep -q "verify" "$FSTAB"; then
+        echo "  $(basename "$FSTAB")"
+        patch_fstab "$FSTAB"
+    fi
+done
 
 if [ -f "ramdisk/sepolicy" ]; then
     echo "Patching SELinux policy"
